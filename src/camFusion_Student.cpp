@@ -133,7 +133,7 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
 // associate a given bounding box with the keypoints it contains
 void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr, std::vector<cv::DMatch> &kptMatches)
 {
-    // ...
+  
 }
 
 
@@ -148,11 +148,68 @@ void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPo
 void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
                      std::vector<LidarPoint> &lidarPointsCurr, double frameRate, double &TTC)
 {
-    // ...
+	double meanPrevLidar_X = 0.0; 
+  	double meanCurrLidar_X = 0.0;
+  	const double halflanewidth = 2.0;  // 4.0 / 2
+  
+    for(auto prevLidarpt : lidarPointsPrev) 
+    {
+      if(abs(prevLidarpt.y) < halflanewidth)  
+      	meanPrevLidar_X += prevLidarpt.x;
+    }
+    meanPrevLidar_X = meanPrevLidar_X / lidarPointsPrev.size();
+
+    for(auto currLidarpt : lidarPointsCurr) 
+    {
+      if(abs(currLidarpt.y) < halflanewidth)  
+      	meanCurrLidar_X += currLidarpt.x;
+    }
+    meanCurrLidar_X = meanCurrLidar_X / lidarPointsCurr.size();
+
+    TTC = meanCurrLidar_X * (1.0 / frameRate) / (meanPrevLidar_X - meanCurrLidar_X);
 }
 
 
 void matchBoundingBoxes(std::vector<cv::DMatch> &matches, std::map<int, int> &bbBestMatches, DataFrame &prevFrame, DataFrame &currFrame)
 {
-    // ...
+  int prevBoxCount  = prevFrame.boundingBoxes.size();
+  int currBoxCount  = currFrame.boundingBoxes.size();
+  int CorrCount[prevBoxCount][currBoxCount] = {};
+  
+  for(cv::DMatch& match : matches) 
+  {
+    auto pt_prev = prevFrame.keypoints[match.queryIdx].pt;
+	auto pt_curr = currFrame.keypoints[match.trainIdx].pt;
+    
+    for(int i = 0; i < prevBoxCount; i++)
+    {
+      for(int j = 0; j < currBoxCount; j++)
+      {
+        if(prevFrame.boundingBoxes[i].roi.contains(pt_prev) &&  
+           currFrame.boundingBoxes[j].roi.contains(pt_curr)) 
+        {
+          CorrCount[i][j] += 1;
+        }
+      }
+    }
+  }
+  int maxCount = 0;
+  int maxID    = 0; 
+  for (int i = 0; i < prevBoxCount; i++)
+  {  
+  	maxCount = 0;
+  	maxID    = -1; 
+ 
+    for (int j = 0; j < currBoxCount; j++)
+    {
+      if (CorrCount[i][j] > maxCount)
+      {  
+        maxCount = CorrCount[i][j];
+        maxID = j;
+      }
+    }
+    
+	if(maxID != -1)
+     	bbBestMatches.insert({i, maxID});
+  } 
 }
